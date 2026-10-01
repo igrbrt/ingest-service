@@ -33,24 +33,23 @@ export class PatientLock implements PatientLockPort {
 
   async extend(input: LockRequest): Promise<boolean> {
     await this.redisService.ensureConnected();
-    const result = await this.redisService.getClient().eval(
-      EXTEND_SCRIPT,
-      1,
-      this.key(input.patientId),
-      input.owner,
-      String(input.ttlMs),
-    );
+    const result = await this.redisService
+      .getClient()
+      .eval(
+        EXTEND_SCRIPT,
+        1,
+        this.key(input.patientId),
+        input.owner,
+        String(input.ttlMs),
+      );
     return result === 1;
   }
 
   async release(input: { patientId: string; owner: string }): Promise<void> {
     await this.redisService.ensureConnected();
-    await this.redisService.getClient().eval(
-      RELEASE_SCRIPT,
-      1,
-      this.key(input.patientId),
-      input.owner,
-    );
+    await this.redisService
+      .getClient()
+      .eval(RELEASE_SCRIPT, 1, this.key(input.patientId), input.owner);
   }
 
   private key(patientId: string): string {

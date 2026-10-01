@@ -1,4 +1,11 @@
-import { Body, Controller, Headers, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from '@nestjs/common';
 import { IDEMPOTENCY_KEY_HEADER } from '../common/http/http-headers.js';
 import { RequireApiKey } from '../common/guards/require-api-key.decorator.js';
 import type { AcceptedEventResponse } from './dto/accepted-event.response.js';

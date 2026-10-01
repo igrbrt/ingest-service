@@ -26,14 +26,19 @@ export class PatientDrainWorker implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     this.worker = new Worker<PatientJobPayload>(
       PATIENT_QUEUE_NAME,
-      (job) => this.patientDrainService.drainPatient({ patientId: job.data.patientId }),
+      (job) =>
+        this.patientDrainService.drainPatient({
+          patientId: job.data.patientId,
+        }),
       {
         connection: buildRedisConnection(this.config),
         concurrency: this.config.workerConcurrency,
       },
     );
     this.worker.on('failed', (job, error) => {
-      this.logger.error(`Drain job ${job?.id ?? 'unknown'} failed: ${error.name}`);
+      this.logger.error(
+        `Drain job ${job?.id ?? 'unknown'} failed: ${error.name}`,
+      );
     });
   }
 

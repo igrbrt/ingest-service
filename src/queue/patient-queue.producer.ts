@@ -1,4 +1,9 @@
-import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Optional,
+  type OnModuleDestroy,
+} from '@nestjs/common';
 import { Queue } from 'bullmq';
 import type { AppConfig } from '../config/app-config.js';
 import { APP_CONFIG } from '../config/app-config.token.js';
@@ -6,6 +11,7 @@ import { buildPatientJobId } from './build-patient-job-id.js';
 import { buildRedisConnection } from './build-redis-connection.js';
 import type { PatientJobPayload } from './patient-job.payload.js';
 import { PATIENT_JOB_NAME, PATIENT_QUEUE_NAME } from './patient-queue-name.js';
+import { PATIENT_QUEUE } from './patient-queue.token.js';
 
 const QUEUED_STATES = new Set<string>([
   'active',
@@ -19,8 +25,17 @@ const QUEUED_STATES = new Set<string>([
 @Injectable()
 export class PatientQueueProducer implements OnModuleDestroy {
   private queue: Queue<PatientJobPayload> | undefined;
+  private readonly ownsQueue: boolean;
 
-  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
+  constructor(
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Optional()
+    @Inject(PATIENT_QUEUE)
+    injectedQueue?: Queue<PatientJobPayload>,
+  ) {
+    this.queue = injectedQueue;
+    this.ownsQueue = injectedQueue === undefined;
+  }
 
   async enqueuePatient(input: { patientId: string }): Promise<void> {
     const queue = this.getQueue();
@@ -77,7 +92,9 @@ export class PatientQueueProducer implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.queue?.close();
+    if (this.ownsQueue) {
+      await this.queue?.close();
+    }
   }
 
   private getQueue(): Queue<PatientJobPayload> {

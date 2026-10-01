@@ -1,10 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  PatientEventStatus,
-  Prisma,
-  type PatientEvent,
-} from '@prisma/client';
+import { PatientEventStatus, Prisma, type PatientEvent } from '@prisma/client';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { configureHttpApp } from '../src/configure-http-app.js';
@@ -49,10 +45,13 @@ class InMemoryPatientEvents {
       (event) => event.idempotencyKey === input.idempotencyKey,
     );
     if (duplicate) {
-      throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-        code: 'P2002',
-        clientVersion: '6.19.3',
-      });
+      throw new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+        },
+      );
     }
     this.sequence += 1;
     const event: PatientEvent = {

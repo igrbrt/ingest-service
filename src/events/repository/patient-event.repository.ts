@@ -22,7 +22,9 @@ export class PatientEventRepository {
     return this.prisma.patientEvent.findFirst(args);
   }
 
-  async findMany(args: Prisma.PatientEventFindManyArgs): Promise<PatientEvent[]> {
+  async findMany(
+    args: Prisma.PatientEventFindManyArgs,
+  ): Promise<PatientEvent[]> {
     return this.prisma.patientEvent.findMany(args);
   }
 

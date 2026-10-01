@@ -41,10 +41,9 @@ export function loadAppConfig(env: NodeJS.ProcessEnv): AppConfig {
   };
 }
 
-function readNodeEnv(
-  value: string | undefined,
-): AppConfig['nodeEnv'] {
-  const nodeEnv = value === undefined || value.trim() === '' ? 'development' : value.trim();
+function readNodeEnv(value: string | undefined): AppConfig['nodeEnv'] {
+  const nodeEnv =
+    value === undefined || value.trim() === '' ? 'development' : value.trim();
   if (NODE_ENVIRONMENTS.includes(nodeEnv as AppConfig['nodeEnv'])) {
     return nodeEnv as AppConfig['nodeEnv'];
   }

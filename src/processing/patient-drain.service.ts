@@ -98,7 +98,10 @@ export class PatientDrainService {
     }
     const watermark =
       await this.patientEventService.findLatestProcessedPatientEvent(patientId);
-    if (watermark && next.occurredAt.getTime() < watermark.occurredAt.getTime()) {
+    if (
+      watermark &&
+      next.occurredAt.getTime() < watermark.occurredAt.getTime()
+    ) {
       await this.patientEventService.markPatientEventForReconciliation(next.id);
       return 'applied';
     }
@@ -143,15 +146,20 @@ export class PatientDrainService {
     }
   }
 
-  private async recordFailure(event: PatientEvent, errorCode: string): Promise<void> {
+  private async recordFailure(
+    event: PatientEvent,
+    errorCode: string,
+  ): Promise<void> {
     const attemptCount = event.attemptCount + 1;
     if (attemptCount >= this.runtime.config.maxAttempts) {
-      const moved = await this.patientEventService.movePatientEventToDeadLetter({
-        id: event.id,
-        owner: this.owner,
-        attemptCount,
-        errorCode,
-      });
+      const moved = await this.patientEventService.movePatientEventToDeadLetter(
+        {
+          id: event.id,
+          owner: this.owner,
+          attemptCount,
+          errorCode,
+        },
+      );
       if (!moved) {
         this.logger.warn(`Could not dead-letter event ${event.id}`);
       }

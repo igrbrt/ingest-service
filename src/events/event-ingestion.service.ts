@@ -76,7 +76,9 @@ export class EventIngestionService {
     }
   }
 
-  private async findOriginalEvent(idempotencyKey: string): Promise<PatientEvent> {
+  private async findOriginalEvent(
+    idempotencyKey: string,
+  ): Promise<PatientEvent> {
     try {
       const existing =
         await this.patientEventService.findPatientEventByIdempotencyKey(

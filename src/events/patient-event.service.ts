@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import {
-  PatientEventStatus,
-  Prisma,
-  type PatientEvent,
-} from '@prisma/client';
+import { PatientEventStatus, Prisma, type PatientEvent } from '@prisma/client';
 import { isInvalidObjectId } from '../database/prisma-error.js';
+import { buildEligiblePendingEventsQuery } from './queries/eligible-pending-events.query.js';
 import { PatientEventRepository } from './repository/patient-event.repository.js';
 
 const OBJECT_ID = /^[a-f\d]{24}$/i;
@@ -16,7 +13,9 @@ const OPEN_STATUSES: PatientEventStatus[] = [
 
 @Injectable()
 export class PatientEventService {
-  constructor(private readonly patientEventRepository: PatientEventRepository) {}
+  constructor(
+    private readonly patientEventRepository: PatientEventRepository,
+  ) {}
 
   async createPatientEvent(input: {
     patientId: string;
@@ -200,19 +199,14 @@ export class PatientEventService {
     limit: number;
     patientId?: string;
   }): Promise<PatientEvent[]> {
-    const eligibleBefore = new Date(
-      input.now.getTime() - input.reorderWindowMs,
+    return this.patientEventRepository.findMany(
+      buildEligiblePendingEventsQuery({
+        now: input.now,
+        reorderWindowMs: input.reorderWindowMs,
+        limit: input.limit,
+        patientId: input.patientId,
+      }),
     );
-    return this.patientEventRepository.findMany({
-      where: {
-        status: PatientEventStatus.PENDING,
-        receivedAt: { lte: eligibleBefore },
-        OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: input.now } }],
-        ...(input.patientId ? { patientId: input.patientId } : {}),
-      },
-      orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
-      take: input.limit,
-    });
   }
 
   async listDeadLetterPatientEvents(limit: number): Promise<PatientEvent[]> {
