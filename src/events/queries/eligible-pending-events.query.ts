@@ -11,7 +11,11 @@ export function buildEligiblePendingEventsQuery(input: {
     where: {
       status: PatientEventStatus.PENDING,
       receivedAt: { lte: eligibleBefore },
-      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: input.now } }],
+      OR: [
+        { nextRetryAt: null },
+        { nextRetryAt: { isSet: false } },
+        { nextRetryAt: { lte: input.now } },
+      ],
       ...(input.patientId ? { patientId: input.patientId } : {}),
     },
     orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
