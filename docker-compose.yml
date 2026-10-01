@@ -1,0 +1,108 @@
+services:
+  mongo:
+    image: mongo:7.0
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mongosh',
+          '--quiet',
+          '--eval',
+          "try { quit(rs.status().ok ? 0 : 1) } catch (e) { quit(1) }",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  mongo-init:
+    image: mongo:7.0
+    depends_on:
+      - mongo
+    restart: 'no'
+    entrypoint:
+      - bash
+      - -c
+      - |
+        until mongosh --host mongo --quiet --eval "db.adminCommand('ping').ok" >/dev/null 2>&1; do
+          sleep 1
+        done
+        mongosh --host mongo --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]}) }"
+
+  redis:
+    image: redis:7.4
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  prisma-push:
+    build: .
+    environment:
+      DATABASE_URL: mongodb://mongo:27017/ingest?replicaSet=rs0&directConnection=true
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    restart: 'no'
+    command:
+      - bash
+      - -c
+      - |
+        for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+          if pnpm exec prisma db push --skip-generate; then
+            exit 0
+          fi
+          sleep 2
+        done
+        exit 1
+
+  api:
+    build: .
+    environment: &app_env
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mongodb://mongo:27017/ingest?replicaSet=rs0&directConnection=true
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      INGEST_API_KEY: ${INGEST_API_KEY:-local-ingest-key}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key}
+      PROCESSING_DELAY_MS: ${PROCESSING_DELAY_MS:-5000}
+      REORDER_WINDOW_MS: ${REORDER_WINDOW_MS:-15000}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-100}
+      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-5}
+      RETRY_BASE_DELAY_MS: ${RETRY_BASE_DELAY_MS:-1000}
+      LEASE_MS: ${LEASE_MS:-60000}
+      RECONCILER_INTERVAL_MS: ${RECONCILER_INTERVAL_MS:-5000}
+    ports:
+      - '3000:3000'
+    depends_on:
+      prisma-push:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command: ['node', 'dist/main.js']
+
+  worker:
+    build: .
+    environment: *app_env
+    depends_on:
+      prisma-push:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command: ['node', 'dist/worker.js']
+
+volumes:
+  mongo-data:
+  redis-data:
