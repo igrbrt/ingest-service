@@ -1,19 +1,22 @@
 {
   "name": "ingest-service",
   "version": "0.0.1",
-  "description": "",
+  "description": "Accepts patient events and processes them in per-patient order.",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
     "lint": "oxlint --type-aware src/ test/",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -26,6 +29,13 @@
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
+    "@prisma/client": "6.19.3",
+    "bullmq": "^6.3.11",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "ioredis": "^6.0.0",
+    "dotenv": "^18.0.5",
+    "prisma": "6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -53,5 +63,13 @@
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@10.18.1"
+  "packageManager": "pnpm@10.18.1",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "msgpackr-extract"
+    ]
+  }
 }

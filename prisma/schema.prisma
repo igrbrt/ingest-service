@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum PatientEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  RECONCILIATION_REQUIRED
+  DEAD_LETTER
+}
+
+model PatientEvent {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  patientId        String
+  type             String
+  data             Json
+  occurredAt       DateTime
+  idempotencyKey   String             @unique
+  receivedAt       DateTime
+  processedAt      DateTime?
+  createdAt        DateTime           @default(now())
+  status           PatientEventStatus @default(PENDING)
+  processingResult Json?
+  attemptCount     Int                @default(0)
+  nextRetryAt      DateTime?
+  lastErrorCode    String?
+  leaseOwner       String?
+  leaseUntil       DateTime?
+
+  @@index([patientId, occurredAt])
+  @@index([status, nextRetryAt])
+  @@index([patientId, status, occurredAt])
+  @@map("patient_events")
+}
