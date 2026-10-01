@@ -1,98 +1,196 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Ingest Service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+HTTP ingestion for patient events. The API acknowledges an event only after MongoDB has stored it, then a worker applies that patient's events in clinical time order. A five-second external call is simulated; the processing result is irrelevant, the wait is real.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Architecture
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ pnpm install
+```text
+POST /events
+  -> API key guard and validation
+  -> EventIngestionService
+  -> PatientEventRepository (Prisma / MongoDB)
+  -> 202 Accepted
+  -> BullMQ job per patient
+       -> worker lock
+       -> oldest eligible event
+       -> simulated external processor
+       -> outcome stored on the same document
 ```
 
-## Compile and run the project
+| Piece | Role |
+| --- | --- |
+| API (`src/main.ts`) | Stateless HTTP process. Validates, persists, enqueues. |
+| Worker (`src/worker.ts`) | Drains one patient at a time and runs the reconciler. |
+| MongoDB | Source of truth for the event, its status, retries, and dead letters. |
+| Redis + BullMQ | Wake-up queue and per-patient lock. Not a cache. AOF is enabled. |
+
+A BullMQ job represents a **patient**, not an event. Its id is a SHA-256 of `patientId`. If that job is already queued or active, enqueue is a success: the active worker keeps draining events that arrive while it runs. `removeOnComplete` frees the id. Failed jobs stay in Redis for inspection and are retried in place.
+
+Events for one patient are applied in `occurredAt` order. Events for different patients run in parallel, up to `WORKER_CONCURRENCY` (default 100) per worker process. More capacity is `docker compose up --scale worker=N`.
+
+## Run locally
+
+Requirements: Docker Compose, and a `.env` only if you want to override the defaults baked into Compose.
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+docker compose up --build
 ```
 
-## Run tests
+That starts MongoDB (single-node replica set), Redis with AOF, a one-shot `prisma db push`, the API on port 3000, and one worker.
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+docker compose up --build --scale worker=2
 ```
 
-## Deployment
+The API image is stateless. The same image runs `node dist/main.js` or `node dist/worker.js`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+k6 is not part of startup. See [Load test](#load-test).
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Without Compose
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+nvm use
+pnpm install
+pnpm prisma:push
+pnpm build
+node dist/main.js
+node dist/worker.js
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+MongoDB must be a replica set (`?replicaSet=rs0`). Prisma uses transactions internally. Copy `.env.example` to `.env` first. `LEASE_MS` must be greater than `PROCESSING_DELAY_MS`.
 
-## Resources
+## HTTP
 
-Check out a few resources that may come in handy when working with NestJS:
+`POST /events` requires `X-API-Key` equal to `INGEST_API_KEY`. Health routes are public. Admin routes require `ADMIN_API_KEY`. Keys are compared as SHA-256 digests with `timingSafeEqual`. The service does not log keys, event payloads, or clinical fields.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+curl -sS -D - http://localhost:3000/events \
+  -H 'content-type: application/json' \
+  -H 'x-api-key: local-ingest-key' \
+  -H 'idempotency-key: visit-1001' \
+  -H 'x-correlation-id: demo-1' \
+  -d '{"patientId":"patient-1","type":"observation","data":{"note":"stable"},"ts":"2026-10-01T12:00:00.000Z"}'
+```
 
-## Support
+`202` body (clinical `data` is not echoed):
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```json
+{
+  "id": "…",
+  "patientId": "patient-1",
+  "type": "observation",
+  "occurredAt": "2026-10-01T12:00:00.000Z",
+  "status": "PENDING",
+  "idempotencyKey": "visit-1001",
+  "receivedAt": "2026-10-01T12:00:01.000Z"
+}
+```
 
-## Stay in touch
+Sending the same `Idempotency-Key`, or the same canonical payload when the header is omitted, returns `202` with the original id and does not create a second processing outcome. If the header is absent, the key is the SHA-256 of the payload with object keys sorted. Array order is preserved, so two payloads that differ only by key order are the same event, and two that differ by timestamp text are not.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+If MongoDB cannot persist the insert, the response is `503`. The event is not acknowledged.
 
-## License
+Errors:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```json
+{
+  "statusCode": 401,
+  "code": "UNAUTHORIZED",
+  "message": "API key is missing or invalid",
+  "timestamp": "2026-10-01T12:00:00.000Z",
+  "path": "/events",
+  "correlationId": "demo-1"
+}
+```
+
+`GET /health/live` is process liveness. `GET /health/ready` pings MongoDB and Redis.
+
+## Decisions and downsides
+
+| Decision | Why | Downside |
+| --- | --- | --- |
+| `202` only after the MongoDB insert | A retry after a crash cannot lose an acknowledged event. | The client waits on the database, not only on validation. |
+| Idempotency key, else payload hash | Senders that omit the header still cannot double-insert the same body. | Equivalent clinical facts with different JSON text are different events. |
+| One job per patient | Preserves per-patient order and allows cross-patient parallelism. | A hot patient is strictly serial and can fall behind. |
+| Reorder window (`REORDER_WINDOW_MS`, default 15s) | Gives an older event time to arrive before a newer one is applied. | Adds latency. `0` disables it for tests. |
+| Late events become `RECONCILIATION_REQUIRED` | Clinical data is kept and is not applied as current state. | Those events need a human or a later reconciliation workflow. |
+| Retry state in MongoDB | A Redis flush cannot forget attempt count or the next retry time. | Two stores must be understood when debugging a stuck patient. |
+| Dead letter in MongoDB, failed BullMQ jobs retained | Nothing is dropped. Redis is an inspection aid. | A dead-lettered event blocks later events for that patient until replay. |
+| MongoDB lease | A killed worker's `PROCESSING` row returns to `PENDING` after `LEASE_MS`. | A lease shorter than the external call could double-invoke that call. Startup rejects `LEASE_MS <= PROCESSING_DELAY_MS`. |
+| API keys | Machine-to-machine auth without a user directory. | Keys are shared secrets. Rotation and per-sender keys are not built. |
+| Prisma 6.19.3 | MongoDB access through one schema and a unique index. | Prisma 7.10 generates a MongoDB client but cannot connect: it requires a driver adapter, and `@prisma/adapter-mongodb` does not exist. Prisma 8 can connect and is still a release candidate, so this service stays on the last stable connector. |
+| `prisma db push` | MongoDB has no Prisma migration history. | Schema changes are pushed, not versioned as reversible migrations. |
+
+## Delivery and ordering
+
+What this service guarantees:
+
+- An event is acknowledged only after it is inserted.
+- The unique index on `idempotencyKey` makes the insert idempotent across API instances.
+- A duplicate acknowledgement does not create a second outcome.
+- Pending work survives process death. Expired leases return to `PENDING`. The reconciler enqueues those patients.
+- Losing Redis does not lose events. MongoDB remains authoritative; the reconciler rebuilds jobs.
+- After `MAX_ATTEMPTS` (default 5), the event becomes `DEAD_LETTER` with `lastErrorCode`. It is not deleted.
+- A failure does not advance that patient's watermark. Later events wait.
+- An event older than the last applied `occurredAt`, once the reorder window has elapsed, is marked `RECONCILIATION_REQUIRED` and left in place.
+
+What the contract cannot guarantee:
+
+- There is no patient sequence number. An event that arrives after a newer one was applied cannot be inserted into history safely. The window bounds that race; it does not eliminate arbitrarily late events.
+- The external call receives the idempotency key, but exactly-once execution is impossible if that system is not idempotent and the worker dies after the call and before the local commit. The retry will call again with the same key.
+- BullMQ's deterministic job id closes the common double-enqueue race. The gap between the worker's last empty check and lock release is closed by the reconciler, not by a distributed transaction.
+
+## Capacity
+
+Sustained arrival is 1000 events per minute, about 16.67 events per second. A 5-second external call needs at least `16.67 * 5 = 84` concurrent calls. The default worker concurrency is 100, inside the 100–120 band. That assumes events are spread across patients. One patient is always sequential, so a single hot patient needs about 12 seconds per minute of events at this rate and will queue. Extra worker containers raise the ceiling for distinct patients; they do not parallelize one patient.
+
+## Failure and recovery
+
+1. API dies after insert, before enqueue. The document is `PENDING`. The reconciler finds it once the reorder window has passed and enqueues the patient.
+2. Worker dies during the 5-second call. The row stays `PROCESSING` until `leaseUntil`. The reconciler, or the next drain, returns it to `PENDING` and calls the external system again with the same idempotency key.
+3. External system returns an error. `attemptCount` increases and `nextRetryAt` becomes `now + RETRY_BASE_DELAY_MS * 2^(attempt-1)`. Later events for that patient wait. At the attempt limit the row becomes `DEAD_LETTER`.
+4. Redis restarts with an empty AOF. Jobs disappear. Documents do not. The next reconciler pass enqueues eligible patients.
+5. Two API replicas receive the same key. One insert wins. The loser reads the stored row and returns `202`.
+
+## Dead letter
+
+MongoDB is the dead-letter record. BullMQ also keeps failed jobs so `GET /admin/queues/status` can show `failed`.
+
+```bash
+curl -sS http://localhost:3000/admin/dead-letter-events \
+  -H 'x-api-key: local-admin-key'
+
+curl -sS -X POST http://localhost:3000/admin/dead-letter-events/<id>/reprocess \
+  -H 'x-api-key: local-admin-key'
+
+curl -sS http://localhost:3000/admin/queues/status \
+  -H 'x-api-key: local-admin-key'
+```
+
+Replay resets that same document to `PENDING`, clears the lease and attempt count, and enqueues the patient. It does not insert a second event. While a dead letter is the oldest open event, later events for that patient stay blocked.
+
+## Load test
+
+k6 is not started by Compose.
+
+```bash
+k6 run k6/ingest.js
+```
+
+The script holds 1000 arrivals per minute for two minutes against `http://localhost:3000`, spread across 200 patients. Override `BASE_URL` and `INGEST_API_KEY` if needed. With the default 5-second processor, run more than one worker before expecting the queue to stay short.
+
+## Tests
+
+`pnpm test` and `pnpm test:e2e` do not need MongoDB or Redis. They cover hashing, duplicate acknowledgement, refusal to acknowledge a failed insert, per-patient order, cross-patient parallelism, the reorder window, late-event reconciliation, backoff, the dead-letter transition, expired leases, an already-active patient job, dead-letter replay, the API-key guard, validation, and the error body.
+
+## Deferred
+
+These are real limits, left out of the local scope on purpose:
+
+- Kafka (or an equivalent log) partitioned by patient, instead of a Redis job per patient.
+- A transactional outbox or change-data capture so the enqueue cannot depend on a second write after the insert.
+- Autoscaling on queue lag.
+- OpenTelemetry.
+- Highly available MongoDB and Redis.
+- Stronger authentication: per-sender keys, rotation, and a vault.
+- An optional gateway in front of the API. Compose does not run Nginx or a load balancer.
