@@ -1,5 +1,5 @@
 import { PatientEventStatus } from '@prisma/client';
-import { buildEligiblePendingEventsQuery } from './eligible-pending-events.query.js';
+import { buildEligiblePendingEventsQuery } from '@/events/queries/eligible-pending-events.query.js';
 
 describe('buildEligiblePendingEventsQuery', () => {
   it('includes documents whose retry timestamp was never stored', () => {

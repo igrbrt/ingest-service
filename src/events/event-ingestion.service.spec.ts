@@ -1,10 +1,10 @@
 import { Prisma, type PatientEvent } from '@prisma/client';
-import type { Clock } from '../common/clock/clock.js';
-import { ApplicationException } from '../common/errors/application.exception.js';
-import { ApplicationCode } from '../common/messages/application-code.js';
-import type { PatientEventService } from './patient-event.service.js';
-import { EventIngestionService } from './event-ingestion.service.js';
-import type { PatientQueueProducer } from '../queue/patient-queue.producer.js';
+import type { Clock } from '@/common/clock/clock.js';
+import { ApplicationException } from '@/common/errors/application.exception.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import type { PatientEventService } from '@/events/patient-event.service.js';
+import { EventIngestionService } from '@/events/event-ingestion.service.js';
+import type { PatientQueueProducer } from '@/queue/patient-queue.producer.js';
 import { PatientEventStatus } from '@prisma/client';
 
 class RecordingEvents {
@@ -25,6 +25,7 @@ class RecordingEvents {
         '6.19.3',
       );
     }
+
     if (
       this.events.some((event) => event.idempotencyKey === input.idempotencyKey)
     ) {
@@ -36,6 +37,7 @@ class RecordingEvents {
         },
       );
     }
+
     const event = {
       id: `00000000000000000000000${this.events.length + 1}`,
       patientId: input.patientId,
@@ -54,7 +56,9 @@ class RecordingEvents {
       leaseOwner: null,
       leaseUntil: null,
     } as PatientEvent;
+
     this.events.push(event);
+
     return event;
   }
 
@@ -85,10 +89,12 @@ describe('EventIngestionService', () => {
       { enqueuePatient } as unknown as PatientQueueProducer,
       clock,
     );
+
     const [first, second] = await Promise.all([
       service.acceptEvent({ body, idempotencyKey: 'same-key' }),
       service.acceptEvent({ body, idempotencyKey: 'same-key' }),
     ]);
+
     expect(first.id).toBe(second.id);
     expect(store.events).toHaveLength(1);
     expect(enqueuePatient).toHaveBeenCalledTimes(1);
@@ -98,16 +104,19 @@ describe('EventIngestionService', () => {
     const store = new RecordingEvents();
     store.failCreates = true;
     const enqueuePatient = vi.fn(async () => undefined);
+
     const service = new EventIngestionService(
       store as unknown as PatientEventService,
       { enqueuePatient } as unknown as PatientQueueProducer,
       clock,
     );
+
     await expect(
       service.acceptEvent({ body, idempotencyKey: undefined }),
     ).rejects.toEqual(
       new ApplicationException(ApplicationCode.SERVICE_UNAVAILABLE),
     );
+    
     expect(enqueuePatient).not.toHaveBeenCalled();
   });
 });

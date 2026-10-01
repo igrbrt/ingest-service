@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ApplicationException } from '../common/errors/application.exception.js';
-import { ApplicationCode } from '../common/messages/application-code.js';
-import { PatientEventService } from '../events/patient-event.service.js';
-import { RedisService } from '../redis/redis.service.js';
-import type { LivenessResponse } from './liveness.response.js';
-import type { ReadinessResponse } from './readiness.response.js';
+import { ApplicationException } from '@/common/errors/application.exception.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import { PatientEventService } from '@/events/patient-event.service.js';
+import { RedisService } from '@/common/redis/redis.service.js';
+import type { LivenessResponse } from '@/health/dto/liveness.response.js';
+import type { ReadinessResponse } from '@/health/dto/readiness.response.js';
 
 @Injectable()
 export class HealthService {
@@ -21,6 +21,7 @@ export class HealthService {
     try {
       await this.patientEventService.pingDatabase();
       const pong = await this.redisService.ping();
+
       if (pong !== 'PONG') {
         throw new ApplicationException(ApplicationCode.SERVICE_UNAVAILABLE);
       }
@@ -28,8 +29,10 @@ export class HealthService {
       if (error instanceof ApplicationException) {
         throw error;
       }
+
       throw new ApplicationException(ApplicationCode.SERVICE_UNAVAILABLE);
     }
+    
     return { status: 'ready' };
   }
 }

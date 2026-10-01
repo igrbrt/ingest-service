@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, type PatientEvent } from '@prisma/client';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '@/common/prisma/prisma.service.js';
 
 @Injectable()
 export class PatientEventRepository {

@@ -1,11 +1,11 @@
 import { type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { AppConfig } from '../../config/app-config.js';
-import { ApplicationException } from '../errors/application.exception.js';
-import { ApplicationCode } from '../messages/application-code.js';
-import { apiKeysMatch } from '../utils/api-keys-match.js';
-import { ApiKeyGuard } from './api-key.guard.js';
-import type { ApiKeyKind } from './api-key-kind.js';
+import type { AppConfig } from '@/config/app-config.js';
+import { ApplicationException } from '@/common/errors/application.exception.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import { apiKeysMatch } from '@/common/utils/api-keys-match.js';
+import { ApiKeyGuard } from '@/common/guards/api-key.guard.js';
+import type { ApiKeyKind } from '@/common/guards/api-key-kind.js';
 
 const config = {
   ingestApiKey: 'test-ingest-key',

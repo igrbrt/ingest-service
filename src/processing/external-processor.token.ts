@@ -1,1 +1,0 @@
-export const EXTERNAL_PROCESSOR = Symbol('EXTERNAL_PROCESSOR');

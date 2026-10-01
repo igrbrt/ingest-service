@@ -1,4 +1,4 @@
-import type { ApplicationCode } from '../messages/application-code.type.js';
+import type { ApplicationCode } from '@/common/messages/application-code.type.js';
 
 export class ApplicationException extends Error {
   constructor(readonly code: ApplicationCode) {

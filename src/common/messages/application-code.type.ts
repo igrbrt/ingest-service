@@ -1,4 +1,4 @@
-import { ApplicationCode } from './application-code.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
 
 export type ApplicationCode =
   (typeof ApplicationCode)[keyof typeof ApplicationCode];

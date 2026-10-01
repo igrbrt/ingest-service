@@ -1,4 +1,4 @@
-import type { LockRequest } from './lock-request.js';
+import type { LockRequest } from '@/processing/dto/lock-request.js';
 
 export interface PatientLockPort {
   acquire(input: LockRequest): Promise<boolean>;

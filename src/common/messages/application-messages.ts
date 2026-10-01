@@ -1,7 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
-import { ApplicationCode } from './application-code.js';
-import type { ApplicationCode as ApplicationCodeValue } from './application-code.type.js';
-import type { ApplicationMessage } from './application-message.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import type { ApplicationCode as ApplicationCodeValue } from '@/common/messages/application-code.type.js';
+import type { ApplicationMessage } from '@/common/messages/application-message.js';
 
 export const applicationMessages: Record<
   ApplicationCodeValue,

@@ -6,11 +6,11 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
-import { IDEMPOTENCY_KEY_HEADER } from '../common/http/http-headers.js';
-import { RequireApiKey } from '../common/guards/require-api-key.decorator.js';
-import type { AcceptedEventResponse } from './dto/accepted-event.response.js';
-import { CreatePatientEventDto } from './dto/create-patient-event.dto.js';
-import { EventIngestionService } from './event-ingestion.service.js';
+import { IDEMPOTENCY_KEY_HEADER } from '@/common/http/http-headers.js';
+import { RequireApiKey } from '@/common/guards/require-api-key.decorator.js';
+import type { AcceptedEventResponse } from '@/events/dto/accepted-event.response.js';
+import { CreatePatientEventDto } from '@/events/dto/create-patient-event.dto.js';
+import { EventIngestionService } from '@/events/event-ingestion.service.js';
 
 @Controller('events')
 @RequireApiKey('ingest')

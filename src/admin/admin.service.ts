@@ -1,15 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PatientEventStatus, type PatientEvent } from '@prisma/client';
-import { ApplicationException } from '../common/errors/application.exception.js';
-import { ApplicationCode } from '../common/messages/application-code.js';
-import type { AcceptedEventResponse } from '../events/dto/accepted-event.response.js';
-import { toAcceptedEventResponse } from '../events/dto/to-accepted-event-response.js';
-import { PatientEventService } from '../events/patient-event.service.js';
-import { PatientQueueProducer } from '../queue/patient-queue.producer.js';
-import type { DeadLetterEventResponse } from './dead-letter-event.response.js';
-import type { QueueStatusResponse } from './queue-status.response.js';
+import { PatientEventStatus } from '@prisma/client';
+import { ApplicationException } from '@/common/errors/application.exception.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import {
+  toAcceptedEventResponse,
+  toDeadLetterEventResponse,
+} from '@/common/utils/helper.js';
+import type { AcceptedEventResponse } from '@/events/dto/accepted-event.response.js';
+import { PatientEventService } from '@/events/patient-event.service.js';
+import { PatientQueueProducer } from '@/queue/patient-queue.producer.js';
+import type { DeadLetterEventResponse } from '@/admin/dto/dead-letter-event.response.js';
+import type { QueueStatusResponse } from '@/admin/dto/queue-status.response.js';
+import { AppConstants } from '@/app.constants.js';
 
-const DEAD_LETTER_PAGE_SIZE = 100;
 
 @Injectable()
 export class AdminService {
@@ -22,24 +25,29 @@ export class AdminService {
 
   async listDeadLetterEvents(): Promise<DeadLetterEventResponse[]> {
     const events = await this.patientEventService.listDeadLetterPatientEvents(
-      DEAD_LETTER_PAGE_SIZE,
+      AppConstants.DEAD_LETTER_PAGE_SIZE,
     );
+
     return events.map((event) => toDeadLetterEventResponse(event));
   }
 
   async reprocessDeadLetterEvent(id: string): Promise<AcceptedEventResponse> {
     const existing = await this.patientEventService.findPatientEventById(id);
+
     if (!existing) {
       throw new ApplicationException(ApplicationCode.EVENT_NOT_FOUND);
     }
+
     if (existing.status !== PatientEventStatus.DEAD_LETTER) {
       throw new ApplicationException(ApplicationCode.EVENT_NOT_REPROCESSABLE);
     }
-    const reset =
-      await this.patientEventService.resetDeadLetterPatientEvent(id);
+
+    const reset = await this.patientEventService.resetDeadLetterPatientEvent(id);
+
     if (!reset) {
       throw new ApplicationException(ApplicationCode.EVENT_NOT_REPROCESSABLE);
     }
+
     try {
       await this.patientQueueProducer.enqueuePatient({
         patientId: reset.patientId,
@@ -50,26 +58,11 @@ export class AdminService {
         `Reprocess enqueue failed (${name}) for ${reset.patientId}`,
       );
     }
+
     return toAcceptedEventResponse(reset);
   }
 
   async readQueueStatus(): Promise<QueueStatusResponse> {
     return this.patientQueueProducer.readCounts();
   }
-}
-
-function toDeadLetterEventResponse(
-  event: PatientEvent,
-): DeadLetterEventResponse {
-  return {
-    id: event.id,
-    patientId: event.patientId,
-    type: event.type,
-    data: event.data,
-    occurredAt: event.occurredAt.toISOString(),
-    receivedAt: event.receivedAt.toISOString(),
-    attemptCount: event.attemptCount,
-    lastErrorCode: event.lastErrorCode,
-    status: event.status,
-  };
 }

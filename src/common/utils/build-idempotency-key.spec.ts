@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { buildIdempotencyKey } from './build-idempotency-key.js';
-import { canonicalize } from './canonicalize.js';
+import { buildIdempotencyKey } from '@/common/utils/build-idempotency-key.js';
+import { canonicalize } from '@/common/utils/canonicalize.js';
 
 describe('buildIdempotencyKey', () => {
   const payload = {

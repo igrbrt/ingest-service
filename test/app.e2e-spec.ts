@@ -3,10 +3,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PatientEventStatus, Prisma, type PatientEvent } from '@prisma/client';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
-import { configureHttpApp } from '../src/configure-http-app.js';
-import { AppModule } from '../src/app.module.js';
-import { PatientEventService } from '../src/events/patient-event.service.js';
-import { PatientQueueProducer } from '../src/queue/patient-queue.producer.js';
+import { configureHttpApp } from '@/configure-http-app.js';
+import { AppModule } from '@/app.module.js';
+import { PatientEventService } from '@/events/patient-event.service.js';
+import { PatientQueueProducer } from '@/queue/patient-queue.producer.js';
 
 process.env.NODE_ENV = 'test';
 process.env.PORT = '3000';
@@ -41,9 +41,11 @@ class InMemoryPatientEvents {
         '6.19.3',
       );
     }
+
     const duplicate = this.events.find(
       (event) => event.idempotencyKey === input.idempotencyKey,
     );
+
     if (duplicate) {
       throw new Prisma.PrismaClientKnownRequestError(
         'Unique constraint failed',
@@ -53,7 +55,9 @@ class InMemoryPatientEvents {
         },
       );
     }
+
     this.sequence += 1;
+
     const event: PatientEvent = {
       id: this.sequence.toString(16).padStart(24, '0'),
       patientId: input.patientId,
@@ -72,7 +76,9 @@ class InMemoryPatientEvents {
       leaseOwner: null,
       leaseUntil: null,
     };
+
     this.events.push(event);
+
     return event;
   }
 
@@ -134,6 +140,7 @@ describe('Events API (e2e)', () => {
       path: '/events',
       correlationId: 'corr-1',
     });
+
     expect(typeof response.body.timestamp).toBe('string');
     expect(response.headers['x-correlation-id']).toBe('corr-1');
   });
@@ -162,6 +169,7 @@ describe('Events API (e2e)', () => {
       status: 'PENDING',
       idempotencyKey: 'key-1',
     });
+
     expect(response.body.data).toBeUndefined();
     expect(store.events).toHaveLength(1);
     expect(enqueuePatient).toHaveBeenCalledWith({ patientId: 'patient-1' });
@@ -189,6 +197,7 @@ describe('Events API (e2e)', () => {
 
   it('does not acknowledge an event when persistence fails', async () => {
     store.failCreates = true;
+
     await request(app.getHttpServer())
       .post('/events')
       .set('X-API-Key', ingestKey)
@@ -197,6 +206,7 @@ describe('Events API (e2e)', () => {
       .expect((response) => {
         expect(response.body.code).toBe('SERVICE_UNAVAILABLE');
       });
+      
     expect(store.events).toHaveLength(0);
     expect(enqueuePatient).not.toHaveBeenCalled();
   });

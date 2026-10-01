@@ -1,15 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PatientEventStatus, Prisma, type PatientEvent } from '@prisma/client';
-import { isInvalidObjectId } from '../database/prisma-error.js';
-import { buildEligiblePendingEventsQuery } from './queries/eligible-pending-events.query.js';
-import { PatientEventRepository } from './repository/patient-event.repository.js';
+import { isInvalidObjectId } from '@/common/prisma/prisma-error.js';
+import { buildEligiblePendingEventsQuery } from '@/events/queries/eligible-pending-events.query.js';
+import { PatientEventRepository } from '@/events/patient-event.repository.js';
+import { AppConstants } from '@/app.constants.js';
 
-const OBJECT_ID = /^[a-f\d]{24}$/i;
-const OPEN_STATUSES: PatientEventStatus[] = [
-  PatientEventStatus.PENDING,
-  PatientEventStatus.PROCESSING,
-  PatientEventStatus.DEAD_LETTER,
-];
 
 @Injectable()
 export class PatientEventService {
@@ -48,15 +43,17 @@ export class PatientEventService {
   }
 
   async findPatientEventById(id: string): Promise<PatientEvent | null> {
-    if (!OBJECT_ID.test(id)) {
+    if (!AppConstants.OBJECT_ID.test(id)) {
       return null;
     }
+
     try {
       return await this.patientEventRepository.findUnique({ where: { id } });
     } catch (error) {
       if (isInvalidObjectId(error)) {
         return null;
       }
+
       throw error;
     }
   }
@@ -65,7 +62,7 @@ export class PatientEventService {
     patientId: string,
   ): Promise<PatientEvent | null> {
     return this.patientEventRepository.findFirst({
-      where: { patientId, status: { in: OPEN_STATUSES } },
+      where: { patientId, status: { in: AppConstants.OPEN_STATUSES } },
       orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
     });
   }
@@ -92,6 +89,7 @@ export class PatientEventService {
         leaseUntil: input.leaseUntil,
       },
     });
+
     return count === 1;
   }
 
@@ -115,6 +113,7 @@ export class PatientEventService {
         leaseUntil: null,
       },
     });
+
     return count === 1;
   }
 
@@ -140,6 +139,7 @@ export class PatientEventService {
         leaseUntil: null,
       },
     });
+
     return count === 1;
   }
 
@@ -164,6 +164,7 @@ export class PatientEventService {
         leaseUntil: null,
       },
     });
+
     return count === 1;
   }
 
@@ -172,6 +173,7 @@ export class PatientEventService {
       where: { id, status: PatientEventStatus.PENDING },
       data: { status: PatientEventStatus.RECONCILIATION_REQUIRED },
     });
+
     return count === 1;
   }
 
@@ -231,9 +233,11 @@ export class PatientEventService {
         processingResult: null,
       },
     });
+
     if (count !== 1) {
       return null;
     }
+    
     return this.findPatientEventById(id);
   }
 

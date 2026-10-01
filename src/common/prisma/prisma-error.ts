@@ -13,9 +13,11 @@ export function isDatabaseUnavailable(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientInitializationError) {
     return true;
   }
+
   if (error instanceof Prisma.PrismaClientRustPanicError) {
     return true;
   }
+  
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
     UNAVAILABLE_CODES.has(error.code)

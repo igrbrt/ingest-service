@@ -5,22 +5,22 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { AppConfig } from '../../config/app-config.js';
-import { APP_CONFIG } from '../../config/app-config.token.js';
-import { ApplicationException } from '../errors/application.exception.js';
-import { API_KEY_HEADER } from '../http/http-headers.js';
-import { ApplicationCode } from '../messages/application-code.js';
-import { apiKeysMatch } from '../utils/api-keys-match.js';
-import { readSingleHeader } from '../utils/read-single-header.js';
-import type { ApiKeyKind } from './api-key-kind.js';
-import { REQUIRE_API_KEY } from './require-api-key.decorator.js';
-import type { CorrelatedRequest } from '../http/correlated-request.js';
+import { AppConstants } from '@/app.constants.js';
+import type { AppConfig } from '@/config/app-config.js';
+import { ApplicationException } from '@/common/errors/application.exception.js';
+import { API_KEY_HEADER } from '@/common/http/http-headers.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import { apiKeysMatch } from '@/common/utils/api-keys-match.js';
+import { readSingleHeader } from '@/common/utils/helper.js';
+import type { ApiKeyKind } from '@/common/guards/api-key-kind.js';
+import { REQUIRE_API_KEY } from '@/common/guards/require-api-key.decorator.js';
+import type { CorrelatedRequest } from '@/common/http/correlated-request.js';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(AppConstants.APP_CONFIG_TOKEN) private readonly config: AppConfig,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -28,16 +28,21 @@ export class ApiKeyGuard implements CanActivate {
       REQUIRE_API_KEY,
       [context.getHandler(), context.getClass()],
     );
+
     if (!kind) {
       return true;
     }
+
     const request = context.switchToHttp().getRequest<CorrelatedRequest>();
     const provided = readSingleHeader(request.header(API_KEY_HEADER));
+
     const expected =
       kind === 'ingest' ? this.config.ingestApiKey : this.config.adminApiKey;
+
     if (!provided || !apiKeysMatch(provided, expected)) {
       throw new ApplicationException(ApplicationCode.UNAUTHORIZED);
     }
+    
     return true;
   }
 }

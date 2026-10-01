@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import type { ApiKeyKind } from './api-key-kind.js';
+import type { ApiKeyKind } from '@/common/guards/api-key-kind.js';
 
 export const REQUIRE_API_KEY = 'requireApiKey';
 

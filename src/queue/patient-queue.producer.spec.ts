@@ -1,9 +1,9 @@
 import { Queue } from 'bullmq';
-import type { AppConfig } from '../config/app-config.js';
-import { buildPatientJobId } from './build-patient-job-id.js';
-import { PatientQueueProducer } from './patient-queue.producer.js';
-import type { PatientJobPayload } from './patient-job.payload.js';
-import { PATIENT_JOB_NAME } from './patient-queue-name.js';
+import { AppConstants } from '@/app.constants.js';
+import { buildPatientJobId } from '@/common/utils/helper.js';
+import type { AppConfig } from '@/config/app-config.js';
+import type { PatientJobPayload } from '@/queue/dto/patient-job.payload.js';
+import { PatientQueueProducer } from '@/queue/patient-queue.producer.js';
 
 const config: AppConfig = {
   nodeEnv: 'test',
@@ -29,6 +29,7 @@ function createProducer(jobState?: string): {
 } {
   const retry = vi.fn(async () => undefined);
   const add = vi.fn(async () => undefined);
+
   const queue = {
     getJob: vi.fn(async () =>
       jobState
@@ -49,32 +50,39 @@ function createProducer(jobState?: string): {
     isPaused: vi.fn(async () => false),
     close: vi.fn(async () => undefined),
   };
+
   const producer = new PatientQueueProducer(
     config,
     queue as unknown as Queue<PatientJobPayload>,
   );
+
   return { producer, add, retry };
 }
 
 describe('PatientQueueProducer', () => {
   it('treats an active patient job as success', async () => {
     const { producer, add } = createProducer('active');
+
     await producer.enqueuePatient({ patientId: 'patient-1' });
+
     expect(add).not.toHaveBeenCalled();
   });
 
   it('retries a failed patient job instead of creating another', async () => {
     const { producer, add, retry } = createProducer('failed');
     await producer.enqueuePatient({ patientId: 'patient-1' });
+
     expect(retry).toHaveBeenCalledOnce();
     expect(add).not.toHaveBeenCalled();
   });
 
   it('enqueues a deterministic job when the patient has no job', async () => {
     const { producer, add } = createProducer();
+    
     await producer.enqueuePatient({ patientId: 'patient-1' });
+
     expect(add).toHaveBeenCalledWith(
-      PATIENT_JOB_NAME,
+      AppConstants.PATIENT_JOB_NAME,
       { patientId: 'patient-1' },
       {
         jobId: buildPatientJobId('patient-1'),

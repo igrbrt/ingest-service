@@ -1,9 +1,9 @@
 import { PatientEventStatus, type PatientEvent } from '@prisma/client';
-import { ApplicationException } from '../common/errors/application.exception.js';
-import { ApplicationCode } from '../common/messages/application-code.js';
-import type { PatientEventService } from '../events/patient-event.service.js';
-import type { PatientQueueProducer } from '../queue/patient-queue.producer.js';
-import { AdminService } from './admin.service.js';
+import { ApplicationException } from '@/common/errors/application.exception.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import type { PatientEventService } from '@/events/patient-event.service.js';
+import type { PatientQueueProducer } from '@/queue/patient-queue.producer.js';
+import { AdminService } from '@/admin/admin.service.js';
 
 function deadLetter(id: string): PatientEvent {
   return {

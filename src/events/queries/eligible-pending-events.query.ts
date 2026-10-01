@@ -7,6 +7,7 @@ export function buildEligiblePendingEventsQuery(input: {
   patientId?: string;
 }): Prisma.PatientEventFindManyArgs {
   const eligibleBefore = new Date(input.now.getTime() - input.reorderWindowMs);
+  
   return {
     where: {
       status: PatientEventStatus.PENDING,

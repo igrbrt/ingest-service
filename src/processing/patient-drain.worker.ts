@@ -6,12 +6,11 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { Worker } from 'bullmq';
-import type { AppConfig } from '../config/app-config.js';
-import { APP_CONFIG } from '../config/app-config.token.js';
-import { buildRedisConnection } from '../queue/build-redis-connection.js';
-import type { PatientJobPayload } from '../queue/patient-job.payload.js';
-import { PATIENT_QUEUE_NAME } from '../queue/patient-queue-name.js';
-import { PatientDrainService } from './patient-drain.service.js';
+import { AppConstants } from '@/app.constants.js';
+import { buildRedisConnection } from '@/common/utils/helper.js';
+import type { AppConfig } from '@/config/app-config.js';
+import type { PatientJobPayload } from '@/queue/dto/patient-job.payload.js';
+import { PatientDrainService } from '@/processing/patient-drain.service.js';
 
 @Injectable()
 export class PatientDrainWorker implements OnModuleInit, OnModuleDestroy {
@@ -20,12 +19,12 @@ export class PatientDrainWorker implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly patientDrainService: PatientDrainService,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(AppConstants.APP_CONFIG_TOKEN) private readonly config: AppConfig,
   ) {}
 
   onModuleInit(): void {
     this.worker = new Worker<PatientJobPayload>(
-      PATIENT_QUEUE_NAME,
+      AppConstants.PATIENT_QUEUE_NAME,
       (job) =>
         this.patientDrainService.drainPatient({
           patientId: job.data.patientId,
@@ -35,6 +34,7 @@ export class PatientDrainWorker implements OnModuleInit, OnModuleDestroy {
         concurrency: this.config.workerConcurrency,
       },
     );
+
     this.worker.on('failed', (job, error) => {
       this.logger.error(
         `Drain job ${job?.id ?? 'unknown'} failed: ${error.name}`,

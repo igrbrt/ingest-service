@@ -1,7 +1,7 @@
 import { type ArgumentsHost } from '@nestjs/common';
-import { ApplicationException } from '../errors/application.exception.js';
-import { ApplicationCode } from '../messages/application-code.js';
-import { ApplicationExceptionFilter } from './application-exception.filter.js';
+import { ApplicationException } from '@/common/errors/application.exception.js';
+import { ApplicationCode } from '@/common/messages/application-code.js';
+import { ApplicationExceptionFilter } from '@/common/filters/application-exception.filter.js';
 
 describe('ApplicationExceptionFilter', () => {
   it('renders the error contract', () => {

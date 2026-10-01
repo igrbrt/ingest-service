@@ -1,24 +1,25 @@
 import { Module } from '@nestjs/common';
-import { CLOCK } from '../common/clock/clock.token.js';
-import { SystemClock } from '../common/clock/system-clock.js';
-import { AppConfigModule } from '../config/app-config.module.js';
-import { EventsModule } from '../events/events.module.js';
-import { QueueModule } from '../queue/queue.module.js';
-import { RedisModule } from '../redis/redis.module.js';
-import { DelayedExternalProcessor } from './delayed-external-processor.js';
-import { EXTERNAL_PROCESSOR } from './external-processor.token.js';
-import { PATIENT_LOCK } from './patient-lock.token.js';
-import { PatientDrainService } from './patient-drain.service.js';
-import { PatientDrainWorker } from './patient-drain.worker.js';
-import { PatientLock } from './patient-lock.js';
-import { ProcessingRuntime } from './processing-runtime.js';
+import { SystemClock } from '@/common/clock/system-clock.js';
+import { CommonModule } from '@/common/common.module.js';
+import { AppConfigModule } from '@/config/app-config.module.js';
+import { EventsModule } from '@/events/events.module.js';
+import { QueueModule } from '@/queue/queue.module.js';
+import { AppConstants } from '@/app.constants.js';
+import { DelayedExternalProcessor } from '@/processing/delayed-external-processor.js';
+import { PatientDrainService } from '@/processing/patient-drain.service.js';
+import { PatientDrainWorker } from '@/processing/patient-drain.worker.js';
+import { PatientLock } from '@/processing/patient-lock.js';
+import { ProcessingRuntime } from '@/processing/processing-runtime.js';
 
 @Module({
-  imports: [AppConfigModule, EventsModule, QueueModule, RedisModule],
+  imports: [AppConfigModule, CommonModule, EventsModule, QueueModule],
   providers: [
-    { provide: CLOCK, useClass: SystemClock },
-    { provide: EXTERNAL_PROCESSOR, useClass: DelayedExternalProcessor },
-    { provide: PATIENT_LOCK, useClass: PatientLock },
+    { provide: AppConstants.CLOCK_TOKEN, useClass: SystemClock },
+    {
+      provide: AppConstants.EXTERNAL_PROCESSOR_TOKEN,
+      useClass: DelayedExternalProcessor,
+    },
+    { provide: AppConstants.PATIENT_LOCK_TOKEN, useClass: PatientLock },
     ProcessingRuntime,
     PatientDrainService,
     PatientDrainWorker,

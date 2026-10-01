@@ -1,15 +1,16 @@
 import { Module } from '@nestjs/common';
-import type { AppConfig } from './app-config.js';
-import { APP_CONFIG } from './app-config.token.js';
-import { loadAppConfig } from './load-app-config.js';
+import { AppConstants } from '@/app.constants.js';
+import type { AppConfig } from '@/config/app-config.js';
+import { loadAppConfig } from '@/config/load-app-config.js';
 
 @Module({
   providers: [
     {
-      provide: APP_CONFIG,
+      provide: AppConstants.APP_CONFIG_TOKEN,
       useFactory: (): AppConfig => loadAppConfig(process.env),
     },
   ],
-  exports: [APP_CONFIG],
+  exports: [AppConstants.APP_CONFIG_TOKEN],
 })
+
 export class AppConfigModule {}

@@ -6,11 +6,11 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { RequireApiKey } from '../common/guards/require-api-key.decorator.js';
-import type { AcceptedEventResponse } from '../events/dto/accepted-event.response.js';
-import { AdminService } from './admin.service.js';
-import type { DeadLetterEventResponse } from './dead-letter-event.response.js';
-import type { QueueStatusResponse } from './queue-status.response.js';
+import { RequireApiKey } from '@/common/guards/require-api-key.decorator.js';
+import type { AcceptedEventResponse } from '@/events/dto/accepted-event.response.js';
+import { AdminService } from '@/admin/admin.service.js';
+import type { DeadLetterEventResponse } from '@/admin/dto/dead-letter-event.response.js';
+import type { QueueStatusResponse } from '@/admin/dto/queue-status.response.js';
 
 @Controller('admin')
 @RequireApiKey('admin')

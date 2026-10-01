@@ -1,12 +1,12 @@
 import { PatientEventStatus, Prisma, type PatientEvent } from '@prisma/client';
-import type { Clock } from '../common/clock/clock.js';
-import type { AppConfig } from '../config/app-config.js';
-import type { PatientEventService } from '../events/patient-event.service.js';
-import type { PatientQueueProducer } from '../queue/patient-queue.producer.js';
-import type { ExternalProcessor } from './external-processor.js';
-import type { PatientLockPort } from './patient-lock.port.js';
-import { PatientDrainService } from './patient-drain.service.js';
-import { ProcessingRuntime } from './processing-runtime.js';
+import type { Clock } from '@/common/clock/clock.js';
+import type { AppConfig } from '@/config/app-config.js';
+import type { PatientEventService } from '@/events/patient-event.service.js';
+import type { PatientQueueProducer } from '@/queue/patient-queue.producer.js';
+import type { ExternalProcessor } from '@/processing/interface/external-processor.js';
+import type { PatientLockPort } from '@/processing/interface/patient-lock.port.js';
+import { PatientDrainService } from '@/processing/patient-drain.service.js';
+import { ProcessingRuntime } from '@/processing/processing-runtime.js';
 
 const start = new Date('2026-10-01T12:00:00.000Z');
 
@@ -33,7 +33,9 @@ class MemoryLock implements PatientLockPort {
     if (this.owners.has(input.patientId)) {
       return false;
     }
+
     this.owners.set(input.patientId, input.owner);
+
     return true;
   }
 
@@ -64,6 +66,7 @@ class MemoryPatientEvents {
       if (input.patientId && event.patientId !== input.patientId) {
         continue;
       }
+
       if (
         event.status === PatientEventStatus.PROCESSING &&
         event.leaseUntil &&
@@ -75,6 +78,7 @@ class MemoryPatientEvents {
         released += 1;
       }
     }
+
     return released;
   }
 
@@ -93,6 +97,7 @@ class MemoryPatientEvents {
         const byTime = left.occurredAt.getTime() - right.occurredAt.getTime();
         return byTime === 0 ? left.id.localeCompare(right.id) : byTime;
       });
+
     return open[0] ?? null;
   }
 
@@ -108,6 +113,7 @@ class MemoryPatientEvents {
       .sort(
         (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime(),
       );
+
     return processed[0] ?? null;
   }
 
@@ -117,12 +123,15 @@ class MemoryPatientEvents {
     leaseUntil: Date;
   }): Promise<boolean> {
     const event = this.events.find((item) => item.id === input.id);
+
     if (!event || event.status !== PatientEventStatus.PENDING) {
       return false;
     }
+
     event.status = PatientEventStatus.PROCESSING;
     event.leaseOwner = input.owner;
     event.leaseUntil = input.leaseUntil;
+
     return true;
   }
 
@@ -133,6 +142,7 @@ class MemoryPatientEvents {
     result: Prisma.InputJsonObject;
   }): Promise<boolean> {
     const event = this.events.find((item) => item.id === input.id);
+
     if (
       !event ||
       event.status !== PatientEventStatus.PROCESSING ||
@@ -156,6 +166,7 @@ class MemoryPatientEvents {
     errorCode: string;
   }): Promise<boolean> {
     const event = this.events.find((item) => item.id === input.id);
+
     if (
       !event ||
       event.status !== PatientEventStatus.PROCESSING ||
@@ -163,12 +174,14 @@ class MemoryPatientEvents {
     ) {
       return false;
     }
+
     event.status = PatientEventStatus.PENDING;
     event.attemptCount = input.attemptCount;
     event.nextRetryAt = input.nextRetryAt;
     event.lastErrorCode = input.errorCode;
     event.leaseOwner = null;
     event.leaseUntil = null;
+
     return true;
   }
 
@@ -179,6 +192,7 @@ class MemoryPatientEvents {
     errorCode: string;
   }): Promise<boolean> {
     const event = this.events.find((item) => item.id === input.id);
+
     if (
       !event ||
       event.status !== PatientEventStatus.PROCESSING ||
@@ -186,6 +200,7 @@ class MemoryPatientEvents {
     ) {
       return false;
     }
+
     event.status = PatientEventStatus.DEAD_LETTER;
     event.attemptCount = input.attemptCount;
     event.lastErrorCode = input.errorCode;
@@ -199,9 +214,11 @@ class MemoryPatientEvents {
     const event = this.events.find(
       (item) => item.id === id && item.status === PatientEventStatus.PENDING,
     );
+
     if (!event) {
       return false;
     }
+
     event.status = PatientEventStatus.RECONCILIATION_REQUIRED;
     return true;
   }
@@ -213,6 +230,7 @@ class MemoryPatientEvents {
     patientId?: string;
   }): Promise<PatientEvent[]> {
     const eligibleBefore = input.now.getTime() - input.reorderWindowMs;
+
     return this.events
       .filter((event) => {
         if (event.status !== PatientEventStatus.PENDING) {
@@ -312,6 +330,7 @@ describe('PatientDrainService', () => {
     const events = new MemoryPatientEvents();
     const clock = new ManualClock();
     const receivedAt = new Date(start.getTime() - 1000);
+
     events.events.push(
       createEvent({
         id: '000000000000000000000002',
@@ -332,9 +351,11 @@ describe('PatientDrainService', () => {
         receivedAt,
       }),
     );
+
     const applied: string[] = [];
     let active = 0;
     let maxActive = 0;
+
     const processor: ExternalProcessor = {
       async applyEvent(input) {
         active += 1;
@@ -347,15 +368,19 @@ describe('PatientDrainService', () => {
         return { outcome: 'accepted' };
       },
     };
+
     const drain = createDrain({ events, clock, processor });
+
     await Promise.all([
       drain.drainPatient({ patientId: 'patient-a' }),
       drain.drainPatient({ patientId: 'patient-b' }),
     ]);
+
     expect(applied.filter((item) => item.startsWith('patient-a'))).toEqual([
       'patient-a:2026-10-01T10:00:00.000Z',
       'patient-a:2026-10-01T10:05:00.000Z',
     ]);
+
     expect(maxActive).toBe(2);
   });
 
@@ -363,12 +388,14 @@ describe('PatientDrainService', () => {
     const events = new MemoryPatientEvents();
     const clock = new ManualClock();
     const processorCalls: string[] = [];
+
     const processor: ExternalProcessor = {
       async applyEvent(input) {
         processorCalls.push(input.idempotencyKey);
         return { outcome: 'accepted' };
       },
     };
+
     events.events.push(
       createEvent({
         id: '000000000000000000000010',
@@ -377,17 +404,21 @@ describe('PatientDrainService', () => {
         receivedAt: start,
       }),
     );
+
     const drain = createDrain({
       events,
       clock,
       processor,
       config: createConfig({ reorderWindowMs: 15000 }),
     });
+
     await drain.drainPatient({ patientId: 'patient-a' });
+
     expect(processorCalls).toEqual([]);
     expect(events.events[0]?.status).toBe(PatientEventStatus.PENDING);
 
     clock.advance(15000);
+
     await drain.drainPatient({ patientId: 'patient-a' });
     expect(processorCalls).toEqual(['000000000000000000000010']);
 
@@ -405,11 +436,14 @@ describe('PatientDrainService', () => {
         receivedAt: new Date(clock.now().getTime() - 20000),
       }),
     );
+
     await drain.drainPatient({ patientId: 'patient-a' });
+
     expect(processorCalls).toEqual([
       '000000000000000000000010',
       '000000000000000000000012',
     ]);
+
     expect(events.events.find((event) => event.id.endsWith('11'))?.status).toBe(
       PatientEventStatus.RECONCILIATION_REQUIRED,
     );
@@ -418,6 +452,7 @@ describe('PatientDrainService', () => {
   it('retries with backoff and then dead-letters without advancing later events', async () => {
     const events = new MemoryPatientEvents();
     const clock = new ManualClock();
+
     events.events.push(
       createEvent({
         id: '000000000000000000000020',
@@ -432,36 +467,45 @@ describe('PatientDrainService', () => {
         receivedAt: new Date(start.getTime() - 1000),
       }),
     );
+
     const processor: ExternalProcessor = {
       async applyEvent() {
         throw new Error('external down');
       },
     };
+
     const drain = createDrain({ events, clock, processor });
     await drain.drainPatient({ patientId: 'patient-a' });
+
     expect(events.events[0]).toMatchObject({
       status: PatientEventStatus.PENDING,
       attemptCount: 1,
       lastErrorCode: 'PROCESSING_FAILED',
     });
+
     expect(events.events[0]?.nextRetryAt?.toISOString()).toBe(
       new Date(start.getTime() + 1000).toISOString(),
     );
+
     expect(events.events[1]?.status).toBe(PatientEventStatus.PENDING);
 
     await drain.drainPatient({ patientId: 'patient-a' });
     expect(events.events[0]?.attemptCount).toBe(1);
 
     clock.advance(1000);
+
     await drain.drainPatient({ patientId: 'patient-a' });
     expect(events.events[0]?.attemptCount).toBe(2);
+
     clock.advance(2000);
+
     await drain.drainPatient({ patientId: 'patient-a' });
     expect(events.events[0]).toMatchObject({
       status: PatientEventStatus.DEAD_LETTER,
       attemptCount: 3,
       lastErrorCode: 'PROCESSING_FAILED',
     });
+
     expect(events.events[1]?.status).toBe(PatientEventStatus.PENDING);
     expect(events.events[1]?.attemptCount).toBe(0);
   });
@@ -469,6 +513,7 @@ describe('PatientDrainService', () => {
   it('recovers an expired processing lease and applies the event once', async () => {
     const events = new MemoryPatientEvents();
     const clock = new ManualClock();
+
     events.events.push(
       createEvent({
         id: '000000000000000000000030',
@@ -480,6 +525,7 @@ describe('PatientDrainService', () => {
         leaseUntil: new Date(start.getTime() - 1),
       }),
     );
+
     const applied: string[] = [];
     const processor: ExternalProcessor = {
       async applyEvent(input) {
@@ -489,6 +535,7 @@ describe('PatientDrainService', () => {
     };
     const drain = createDrain({ events, clock, processor });
     await drain.drainPatient({ patientId: 'patient-a' });
+    
     expect(applied).toEqual(['000000000000000000000030']);
     expect(events.events[0]?.status).toBe(PatientEventStatus.PROCESSED);
     expect(events.events[0]?.leaseOwner).toBeNull();

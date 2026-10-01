@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { EventsModule } from '../events/events.module.js';
-import { RedisModule } from '../redis/redis.module.js';
-import { HealthController } from './health.controller.js';
-import { HealthService } from './health.service.js';
+import { CommonModule } from '@/common/common.module.js';
+import { EventsModule } from '@/events/events.module.js';
+import { HealthController } from '@/health/health.controller.js';
+import { HealthService } from '@/health/health.service.js';
 
 @Module({
-  imports: [EventsModule, RedisModule],
+  imports: [CommonModule, EventsModule],
   controllers: [HealthController],
   providers: [HealthService],
 })
