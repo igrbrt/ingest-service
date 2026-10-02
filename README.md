@@ -28,9 +28,24 @@ A BullMQ job represents a **patient**, not an event. Its id is a SHA-256 of `pat
 
 Events for one patient are applied in `occurredAt` order. Events for different patients run in parallel, up to `WORKER_CONCURRENCY` (default 100) per worker process. More capacity is `docker compose up --scale worker=N`.
 
-## Run locally
+## Requirements
 
-Requirements: Docker Compose, and a `.env` only if you want to override the defaults baked into Compose.
+| Tool | When you need it |
+| --- | --- |
+| Docker Engine and the Compose plugin | `docker compose up`. Compose starts MongoDB 7, Redis 7.4, the API, and one worker. The image uses Node 24 and pnpm 10.18.1. |
+| Node.js 24 or newer | Running the API and worker on the host, or running `pnpm test`, `pnpm test:e2e`, and `pnpm lint`. |
+| pnpm 10.18.1 | The same cases as Node. Activate it with Corepack, which ships with Node 24. |
+| MongoDB as a replica set, and Redis | Only when the API and worker run on the host. Compose already provides both. |
+| k6 | The [load test](#load-test). Compose does not start it. |
+
+```bash
+corepack enable
+corepack prepare pnpm@10.18.1 --activate
+```
+
+A `.env` file is optional with Compose. The defaults live in `docker-compose.yml`. Copy `.env.example` to `.env` before the host commands in [Without Compose](#without-compose).
+
+## Run locally
 
 ```bash
 docker compose up --build
@@ -171,7 +186,31 @@ Replay resets that same document to `PENDING`, clears the lease and attempt coun
 
 ## Load test
 
-k6 is not started by Compose.
+k6 is not started by Compose. Install it on the machine that will call the API, then run the script from the repository root. The API must already be listening on port 3000.
+
+### Linux (Debian and Ubuntu)
+
+```bash
+curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+sudo apt-get update
+sudo apt-get install k6
+```
+
+On Fedora and other `dnf` distributions:
+
+```bash
+sudo dnf install https://dl.k6.io/rpm/repo.rpm
+sudo dnf install k6
+```
+
+### Windows
+
+```powershell
+winget install k6 --source winget
+```
+
+Open a new terminal after the install so `k6` is on `PATH`. Confirm with `k6 version`.
 
 ```bash
 k6 run k6/ingest.js
