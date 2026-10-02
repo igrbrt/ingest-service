@@ -6,7 +6,6 @@ import { ApplicationException } from '@/common/errors/application.exception.js';
 import { ApplicationCode } from '@/common/messages/application-code.js';
 import { buildIdempotencyKey } from '@/common/utils/build-idempotency-key.js';
 import {
-  readSingleHeader,
   toAcceptedEventResponse,
   toJsonObject,
 } from '@/common/utils/helper.js';
@@ -31,16 +30,10 @@ export class EventIngestionService {
 
   async acceptEvent(input: {
     body: CreatePatientEventDto;
-    idempotencyKey: string | string[] | undefined;
+    idempotencyKey?: string;
   }): Promise<AcceptedEventResponse> {
-    const header = readSingleHeader(input.idempotencyKey)?.trim();
-
-    if (header && header.length > AppConstants.MAX_IDEMPOTENCY_KEY_LENGTH) {
-      throw new ApplicationException(ApplicationCode.VALIDATION_FAILED);
-    }
-
     const idempotencyKey = buildIdempotencyKey({
-      headerValue: header,
+      headerValue: input.idempotencyKey,
       payload: {
         patientId: input.body.patientId,
         type: input.body.type,
