@@ -138,6 +138,14 @@ Errors:
 
 ## Delivery and ordering
 
+### Delivery semantics
+
+The ingest service provides at-least-once delivery to the external processor.
+
+An event has a unique idempotency key and is persisted exactly once in MongoDB. If the worker crashes after the external side effect succeeds but before MongoDB is marked `PROCESSED`, the external call may be retried.
+
+Exactly-once business effects require the downstream system to honor the provided idempotency key.
+
 What this service guarantees:
 
 - An event is acknowledged only after it is inserted.
@@ -152,7 +160,6 @@ What this service guarantees:
 What the contract cannot guarantee:
 
 - There is no patient sequence number. An event that arrives after a newer one was applied cannot be inserted into history safely. The window bounds that race; it does not eliminate arbitrarily late events.
-- The external call receives the idempotency key, but exactly-once execution is impossible if that system is not idempotent and the worker dies after the call and before the local commit. The retry will call again with the same key.
 - BullMQ's deterministic job id closes the common double-enqueue race. The gap between the worker's last empty check and lock release is closed by the reconciler, not by a distributed transaction.
 
 ## Capacity
