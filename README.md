@@ -4,7 +4,8 @@ HTTP ingestion for patient events. The API acknowledges an event only after Mong
 
 ## Architecture
 
-<img width="1262" height="1072" alt="image" src="https://github.com/user-attachments/assets/e9734641-5d88-4c43-9fae-0f4e150b5669" />
+<img width="1166" height="1081" alt="image" src="https://github.com/user-attachments/assets/86cc0e31-8826-46f1-b17a-e9a6c9471a1c" />
+
 
 
 ```text
